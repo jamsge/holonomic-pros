@@ -8,8 +8,6 @@
  */
 
 #include "main.h"
-#include "fbc.h"
-#include "fbc_pid.h"
 
 /*
  * Runs the user operator control code. This function will be started in its own task with the
@@ -29,12 +27,6 @@
  * This task should never exit; it should end with some kind of infinite loop, even if empty.
  */
 
-
-const int motorFL = 9;
-const int motorFR = 8;
-const int motorBL = 7;
-const int motorBR = 6;
-
 void getValues(){
 	print("\n\n==================\n");
 	printf("FR: %d\r\n", encoderGet(FR));
@@ -51,8 +43,25 @@ void getValues(){
 	delay(1000);
 }
 
+
 void init(){
 	TaskHandle output = taskRunLoop(getValues, 500);
+	FRInit();
+}
+
+void resetEncoders(){
+	encoderReset(FR);
+	encoderReset(FL);
+	encoderReset(BR);
+	encoderReset(BL);
+}
+
+void parallelAll(){
+	FRParallel();
+	// FLParallel();
+	// BRParallel();
+	// BLparallel();
+	// Uncomment after you makes these methods in drive_pid.c
 }
 
 
@@ -67,6 +76,7 @@ void operatorControl() {
 		turn = joystickGetAnalog(1, 4);
 		ydir = joystickGetAnalog(1, 1);
 		xdir = joystickGetAnalog(1, 2);
+
 		if (abs(turn) < 10) {
 			turn = 0;
 		}
@@ -76,9 +86,27 @@ void operatorControl() {
 		if (abs(xdir) < 10) {
 			xdir = 0;
 		}
-		if (ydir == 0 && xdir == 0 && turn == 0){
-			
+
+		if (abs(ydir) > 110){
+			xdir = 0;
+			turn = 0;
 		}
+		if (abs(xdir) > 110){
+			ydir = 0;
+			turn = 0;
+		}
+
+		if (abs(xdir) < 10 && abs(ydir) < 10 && abs(turn) < 10){
+			while ( abs(joystickGetAnalog(1,4)) < 10 && 
+					abs(joystickGetAnalog(1,1)) < 10 && 
+					abs(joystickGetAnalog(1,2)) < 10){
+				resetEncoders();
+				FRSetGoal(0);
+				FRParallel();
+			}
+			FRStop();
+		}
+
 		motorSet(motorFL, ydir + xdir + turn);
 		motorSet(motorFR, ydir - xdir + turn);
 		motorSet(motorBL, -ydir + xdir + turn);

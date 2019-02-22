@@ -37,6 +37,11 @@ extern "C" {
 #define PROS_VERSION_PATCH 2
 #define PROS_VERSION_STRING "2.12.2"
 
+#define motorFL 9
+#define motorFR 8
+#define motorBL 7
+#define motorBR 6
+
 // -------------------- VEX competition functions --------------------
 
 /**
