@@ -48,6 +48,6 @@ void initialize() {
 	encoderReset(FL);
 	encoderReset(BR);
 	encoderReset(BL);
-
+    
     printf("Initializing...");
 }

@@ -8,6 +8,9 @@
  */
 
 #include "main.h"
+#include "fbc.h"
+#include "fbc_pid.h"
+#include "pid.h"
 
 /*
  * Runs the user operator control code. This function will be started in its own task with the
@@ -27,28 +30,7 @@
  * This task should never exit; it should end with some kind of infinite loop, even if empty.
  */
 
-void getValues(){
-	print("\n\n==================\n");
-	printf("FR: %d\r\n", encoderGet(FR));
-	printf("FL: %d\r\n", encoderGet(FL));
-	printf("BR: %d\r\n", encoderGet(BR));
-	printf("BL: %d\r\n", encoderGet(BL));
-	printf("Joy1: %d\r\n", joystickGetAnalog(1,1));
-	printf("Joy2: %d\r\n", joystickGetAnalog(1,2));
-	printf("Joy4: %d\r\n", joystickGetAnalog(1,4));
-	printf("MotorFL: %d\r\n", motorGet(motorFL));
-	printf("MotorFR: %d\r\n", motorGet(motorFR));
-	printf("MotorBL: %d\r\n", motorGet(motorBL));
-	printf("MotorBR: %d\r\n", motorGet(motorBR));
-	delay(1000);
-}
-
-
-void init(){
-	TaskHandle output = taskRunLoop(getValues, 500);
-	FRInit();
-}
-
+// Reset all encoders
 void resetEncoders(){
 	encoderReset(FR);
 	encoderReset(FL);
@@ -56,37 +38,46 @@ void resetEncoders(){
 	encoderReset(BL);
 }
 
-void parallelAll(){
-	FRParallel();
-	// FLParallel();
-	// BRParallel();
-	// BLparallel();
-	// Uncomment after you makes these methods in drive_pid.c
+// Print all encoder positions
+void printVals(){
+	print("\n\n==================\n");
+	printf("FR: %d\r\n", encoderGet(FR));
+	printf("FL: %d\r\n", encoderGet(FL));
+	printf("BR: %d\r\n", encoderGet(BR));
+	printf("BL: %d\r\n", encoderGet(BL));
 }
-
 
 void operatorControl() {
 	int turn;
 	int ydir;
 	int xdir;
+	bool isMoving = false;
+	// Run printVals task every 1000ms
+	TaskHandle taskhandle = taskRunLoop(printVals, 1000);
+
+	// Initialize all encoders
+	initControllers();
+
+	// Reset all encoders
+	resetEncoders();
+	
 	print("Operator start\n");
-	init();
-	while (1) {
-		delay(20);
+	while (true) {
+		// Assign joysticks to holonomic movement
 		turn = joystickGetAnalog(1, 4);
 		ydir = joystickGetAnalog(1, 1);
 		xdir = joystickGetAnalog(1, 2);
 
-		if (abs(turn) < 10) {
+		// joystick deadzones
+		if (abs(turn) < 15) {
 			turn = 0;
 		}
-		if (abs(ydir) < 10) {
+		if (abs(ydir) < 15) {
 			ydir = 0;
 		}
-		if (abs(xdir) < 10) {
+		if (abs(xdir) < 15) {
 			xdir = 0;
 		}
-
 		if (abs(ydir) > 110){
 			xdir = 0;
 			turn = 0;
@@ -95,22 +86,40 @@ void operatorControl() {
 			ydir = 0;
 			turn = 0;
 		}
-
-		if (abs(xdir) < 10 && abs(ydir) < 10 && abs(turn) < 10){
-			while ( abs(joystickGetAnalog(1,4)) < 10 && 
-					abs(joystickGetAnalog(1,1)) < 10 && 
-					abs(joystickGetAnalog(1,2)) < 10){
-				resetEncoders();
-				FRSetGoal(0);
-				FRParallel();
-			}
-			FRStop();
+		if (abs(turn) > 110){
+			ydir = 0;
+			xdir = 0;
 		}
 
+		// when moving, always reset the encoders and set position goal for all to zero
+		// this is because if the drive stops at any moment, it can use 0 as a home position for PID braking
+		setPosAll(0);
+		resetEncoders();
+		while (abs(joystickGetAnalog(1,1)) < 20 
+		&& abs(joystickGetAnalog(1,2)) < 20 
+		&& abs(joystickGetAnalog(1,4)) < 20){
+			// drive should no longer be moving
+			isMoving = false;
+
+			// run all PID controllers in parallel
+			runParallelAll();
+
+			// turn on LED at port 1
+			digitalWrite(1, HIGH);
+		}
+		digitalWrite(1, LOW);
+
+		// this use of isMoving ensures that endAll() is only executed once when the drive starts moving again
+		// endAll() only gets used when exiting the last loop
+		if (!isMoving){
+			isMoving = true;
+			endAll();
+		}
+		
+		// set motor speeds according to joystick locations
 		motorSet(motorFL, ydir + xdir + turn);
 		motorSet(motorFR, ydir - xdir + turn);
 		motorSet(motorBL, -ydir + xdir + turn);
 		motorSet(motorBR, -ydir - xdir + turn);
-		
 	}
 }

@@ -52,6 +52,7 @@ typedef struct fbc fbc_t; // predefine fbc_t for use inside fbc_t
    int pos_deadband, neg_deadband;
    unsigned int acceptableConfidence, acceptableTolerance;
    bool confident;
+   bool isStalled;
 
    /*
    * FOR INTERNAL USE
@@ -61,17 +62,22 @@ typedef struct fbc fbc_t; // predefine fbc_t for use inside fbc_t
    unsigned int _confidence;
    unsigned long _prevExecution; // most recent time of execution
    int _prevSense;
+   unsigned int _stallDetectCount;
  } fbc_t;
 
 /**
  * @brief a simple stall detection algorithm
+ *
+ * This stall detection algorithm looks for unexpectedly low movement for a given output, indicating that the robot
+ * is experiencing significant enough resistance that it may cause a stall. This function pointer can be given
+ * to the fbcInit function, or you can write your own stall detection function if you prefer.
  *
  * @param fbc
  *        A pointer to a feedback controller
  *
  * @returns true if the controller is stalled, false otherwise
  */
- bool fbcStallDetect(fbc_t* fbc);
+extern bool (*fbcStallDetect)(fbc_t* fbc);
 
 /**
  * @brief Initializes a barebones feedback controller without the actual controller. Use an auxiliary function
@@ -100,9 +106,8 @@ typedef struct fbc fbc_t; // predefine fbc_t for use inside fbc_t
  *        Minimum number of contiguous time slices that need to be on target to consider the system stably
  *        on target.
  */
-void fbcInit(fbc_t* fbc, void (*move)(int), int (*sense)(void), void (*resetSense)(void),
-             bool (*stallDetect)(fbc_t*), int neg_deadband, int pos_deadband, int acceptableTolerance,
-             unsigned int acceptableConfidence);
+void fbcInit(fbc_t* fbc, void (*move)(int), int (*sense)(void), void (*resetSense)(void), bool (*stallDetect)(fbc_t*),
+             int neg_deadband, int pos_deadband, int acceptableTolerance, unsigned int acceptableConfidence);
 
 /**
  * @brief Resets the feedback controller's goal, sensor state, and accumulating parameters, if applicable.
@@ -154,13 +159,13 @@ bool fbcRunCompletion(fbc_t* fbc, unsigned long int timeout);
 TaskHandle fbcRunParallel(fbc_t* fbc);
 
 /**
- * @brief Generates the output for the feedback controller but does not actually set the output (as opposed to fbcRunContinuous)
+ * @brief Generates the output for the feedback controller but does not actually set the output (as opposed to
+ * fbcRunContinuous)
  */
-int fbcGenerateOutput(fbc_t * fbc);
-
+int fbcGenerateOutput(fbc_t* fbc);
 
 // Helper macros for implementations of fbc
-// time is all done in microseconds
-#define CUR_TIME  micros
-#define TIME_TO_SEC(t) ((t) / 1000000)
+// time is all done in milliseconds
+#define CUR_TIME millis
+#define TIME_TO_SEC(t) ((t) / 1000)
 #endif /* end of include guard: _FBC_H_ */
